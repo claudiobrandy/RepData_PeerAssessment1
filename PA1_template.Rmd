@@ -1,20 +1,131 @@
+---
+output: html_document
+---
 # Reproducible Research: Peer Assessment 1
 
+It is now possible to collect a large amount of data about
+personal movement using activity monitoring devices such as 
+a Fitbit, Nike Fuelband, or Jawbone Up. These type of
+devices are part of the "quantified self" movement - a 
+group of enthusiasts who take measurements about themselves 
+regularly to improve their health, to find patterns in 
+their behavior, or because they are tech geeks. But these 
+data remain under-utilized both because the raw data are 
+hard to obtain and there is a lack of statistical methods 
+and software for processing and interpreting the data.
+
+This assignment makes use of data from a personal activity 
+monitoring device. This device collects data at 5 minute 
+intervals through out the day. The data consists of two 
+months of data from an anonymous individual collected 
+during the months of October and November, 2012 and include 
+the number of steps taken in 5 minute intervals each day.
 
 ## Loading and preprocessing the data
 
+We downloaded the data on 8/7/2014 from URL <- "https://d396qusza40orc.cloudfront.net/repdata/data/activity.zip" and unzipped the file (dated 2/11/2014).  
+Here's the code needed to:  
+  
+1. Load the data.  
+2. Process/transform the data into a format suitable for 
+our analysis.  
+
+```{r  loading, echo=TRUE}
+
+activ<-read.csv("activity.csv")
+activ<-cbind(activ, hourmin=activ[,3])
+activ$hourmin<-as.character(activ$hourmin)
+activ$hourmin[]<-paste("000",activ$hourmin[],sep="")
+activ$hourmin[]<-substr(activ$hourmin[],nchar(activ$hourmin[])-3,nchar(activ$hourmin[]))
+activ$hourmin[]<-paste(substr(activ$hourmin[],1,2),substr(activ$hourmin[],3,4),sep=":")
+
+```
 
 
-## What is mean total number of steps taken per day?
+## What is the mean total number of steps taken per day?
 
+For this part of the assignment, we ignore the missing 
+values in the dataset.  
+  
+1. We make a histogram of the total number of steps taken 
+each day.  
 
-
+```{r  histogramsteps, echo=TRUE,fig.height=4, fig.width=4}
+sumsteps<-tapply(activ$steps,activ$date,sum)
+hist(sumsteps, main="Histogram of # of daily steps",xlab="Number of Daily Steps")
+```  
+  
+2. We calculate and report the mean and the median of the total number of steps taken per day.  
+```{r  meansteps, echo=TRUE}
+meansteps<-mean(sumsteps,na.rm = TRUE)
+mediansteps<-median(sumsteps,na.rm = TRUE)
+```
+The  mean of the total number of daily steps is `r format(meansteps, scientific=FALSE)` and the median is `r format(mediansteps, scientific=FALSE)`.  
+  
+  
 ## What is the average daily activity pattern?
-
+  
+1. We display a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)  
+2. We then show the 5-minute interval, on average across all the days in the dataset, that contains the maximum number of steps.  
+```{r  averagepat, echo=TRUE}
+avginterv<-aggregate(activ$steps, by = list(as.factor(activ$hourmin)), FUN = mean, na.rm=T)
+plot(avginterv$x, type="l", xlab="Time Interval", ylab="Avg. # of Steps", main="Mean steps per 5-minute interval")
+maxsteps<-avginterv$Group.1[avginterv$x==max(avginterv$x)]
+maxstepsend<-avginterv$Group.1[which(avginterv$Group.1==maxsteps ) + 1]
+```
+The 5-minute interval with the maximum numer of steps is `r maxsteps `-`r maxstepsend`.
 
 
 ## Imputing missing values
 
-
+We should take into account that there are a number of days
+/intervals where there are missing values (coded as NA). 
+The presence of missing days may introduce bias into some 
+calculations or summaries of the data.  
+  
+1. We calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)  
+2. We decide that we will replace NAs in missing values with the mean daily number of steps per interval.  
+3. We then create a new dataset ("activimp") that is equal to the original dataset but with the missing data filled in.  
+4. Finally, we make a histogram of the total number of steps taken each day and calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?  
+  
+```{r  missing, echo=TRUE}
+missval<-sum(!complete.cases(activ))
+```
+The dataset has `r missval` missing values.  
+  
+```{r  imputing, echo=TRUE}  
+activimp<-activ
+for (i in which(sapply(activimp, is.numeric))) {
+    activimp[is.na(activimp[, i]), i] <- mean(activimp[, i],  na.rm = TRUE)
+}
+sumsteps2<-tapply(activimp$steps,activ$date,sum)
+hist(sumsteps2, main="Histogram of # of daily steps",xlab="Number of Daily Steps (no NAs)")
+meansteps2<-mean(sumsteps2)
+mediansteps2<-median(sumsteps2)
+```
+  
+The  mean of the total number of daily steps with imputed data is `r format(meansteps2, scientific=FALSE)` and the median is `r format(mediansteps2, scientific=FALSE)`.   
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+For this part the weekdays() function may be of some help here. We use the dataset with the filled-in missing values for this part.  
+  
+1. We create a new factor variable in the dataset with two levels - "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.  
+2. We make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).  
+```{r  differ, echo=TRUE}
+activimp[,5]<-as.POSIXlt(activimp$date)$wday
+for (i in 1:nrow(activimp)) {
+    if ((activimp[i,5]==0) | (activimp[i,5]==6)) {
+        activimp[i,5]<-"weekend"
+    }
+    else activimp[i,5]<-"weekday"
+}
+activimp[,5]<-factor(activimp$V5)
+par(mfrow = c(2, 1))
+activimpd<-activimp[activimp[,5]=="weekday",]
+activimpe<-activimp[activimp[,5]=="weekend",]
+avgintervd<-aggregate(activimpd$steps, by = list(as.factor(activimpd$hourmin)), FUN = mean, na.rm=T)
+plot(avgintervd$x, type="l", xlab="Time Interval", ylab="Avg. # of Steps", main="Mean steps per 5-minute interval on weekdays")
+avginterve<-aggregate(activimpe$steps, by = list(as.factor(activimpe$hourmin)), FUN = mean, na.rm=T)
+plot(avginterv$x, type="l", xlab="Time Interval", ylab="Avg. # of Steps", main="Mean steps per 5-minute interval on weekends")
+```
